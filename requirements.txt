@@ -1,0 +1,8 @@
+openai
+gradio
+yt-dlp
+python-dotenv
+fpdf
+requests
+beautifulsoup4
+
