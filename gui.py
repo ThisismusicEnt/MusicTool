@@ -16,6 +16,9 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 if not openai.api_key:
     raise ValueError("OPENAI_API_KEY is not set in the .env file.")
 
+# Initialize OpenAI client with the API key
+client = openai.OpenAI(api_key=openai.api_key)
+
 ### HELPER FUNCTIONS ###
 
 def transcribe_audio(audio_file_path: str) -> str:
@@ -52,7 +55,7 @@ Please summarize the following text in a concise and clear manner:
         prompt = text
 
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4-0613",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=500,
@@ -72,7 +75,7 @@ Release Date: {release_date}
 Album Description: {album_description}
 Output only the press release text."""
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4-0613",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=500,
@@ -88,7 +91,7 @@ def generate_social_media_post(song_title: str, artist_name: str) -> str:
 Write an engaging and concise social media post to promote the song "{song_title}" by {artist_name}.
 Output only the post text."""
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4-0613",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=150,
@@ -109,7 +112,7 @@ Include:
 - Press Quotes: {press_quotes}
 Output only the EPK text."""
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4-0613",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=600,
@@ -191,7 +194,7 @@ def get_audio(url: str, desired_format: str = "mp3") -> str:
 def chat_with_api(prompt: str) -> str:
     """A simple wrapper to interact with GPT-4."""
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4-0613",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=150,
@@ -596,12 +599,9 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     images_run.click(crawl_images_callback, inputs=[images_url], outputs=[images_gallery])
     download_chat_button.click(download_chat_pdf_callback, inputs=[chat_output, chat_pdf_filename], outputs=chat_pdf_file)
     
-
 import os
 
 if __name__ == "__main__":
-    # This forces using the Heroku-assigned port
     port = int(os.environ.get("PORT", 7860))
     print("Binding to port:", port)  # Debug output
     demo.launch(server_name="0.0.0.0", server_port=port)
-za
