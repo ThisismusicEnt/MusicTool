@@ -600,7 +600,7 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
 import os
 
 if __name__ == "__main__":
-    # Get the port from the environment (Heroku sets this automatically)
-    port = int(os.environ.get("PORT", 7860))
-    # Make sure to bind to all interfaces ("0.0.0.0")
+    # Instead of using a default, use the PORT environment variable.
+    port = int(os.environ["PORT"])
     demo.launch(server_name="0.0.0.0", server_port=port)
+
