@@ -9,11 +9,13 @@ import yt_dlp  # For downloading audio
 
 # Load environment variables from .env
 load_dotenv()
-# Create a global OpenAI client instance using the new interface
-from openai import OpenAI
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-if client.api_key is None:
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
     raise ValueError("OPENAI_API_KEY is not set in the .env file.")
+
+# Instantiate the new OpenAI client
+from openai import OpenAI
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 ### FUNCTION DEFINITIONS ###
 
@@ -21,11 +23,9 @@ def transcribe_audio(audio_file_path: str) -> str:
     """
     Transcribes the given audio file using OpenAI's Whisper API.
     Expects a valid audio file path (e.g., .mp3, .wav).
-    (Assuming the audio transcription endpoint remains available via client.audio.transcribe)
     """
     try:
         with open(audio_file_path, "rb") as audio_file:
-            # You can try using the client version if available; otherwise, fallback to openai.Audio.transcribe
             transcript = client.audio.transcribe("whisper-1", audio_file)
         return transcript["text"]
     except Exception as e:
@@ -56,12 +56,11 @@ Please summarize the following text in a concise and clear manner:
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",  # or "gpt-4o-mini" if you prefer; adjust as needed
+            model="gpt-4o",  # Adjust model name as needed
             messages=[{"role": "user", "content": prompt}],
             max_tokens=500,
             temperature=0.7,
         )
-        # Using attribute access per new client style
         return response.choices[0].message.content.strip()
     except Exception as e:
         print(f"Error during GPT processing: {e}")
@@ -140,22 +139,19 @@ Include the following details:
         print(f"Error generating EPK: {e}")
         return ""
 
-def text_to_pdf(text: str, output_filename: str) -> str:
+def text_to_pdf(text: str, output_filename: str) -> None:
     """
-    Generates a PDF file from the provided text using fpdf and returns the filename.
+    Generates a PDF file from the provided text using fpdf.
     """
     try:
         pdf = FPDF()
         pdf.add_page()
-        # Arial in fpdf maps to Helvetica
-        pdf.set_font("Arial", size=12)
+        pdf.set_font("Arial", size=12)  # Note: Arial maps to Helvetica in fpdf
         pdf.multi_cell(0, 10, text)
         pdf.output(output_filename)
         print(f"PDF successfully saved as {output_filename}")
-        return output_filename
     except Exception as e:
         print(f"Error generating PDF: {e}")
-        return f"Error generating PDF: {e}"
 
 def get_audio(url: str, desired_format: str = "mp3") -> str:
     """
@@ -165,10 +161,8 @@ def get_audio(url: str, desired_format: str = "mp3") -> str:
     """
     downloads_dir = os.path.join(os.getcwd(), "downloads")
     os.makedirs(downloads_dir, exist_ok=True)
-    
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     output_template = os.path.join(downloads_dir, f"{timestamp}_%(title)s.%(ext)s")
-    
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': output_template,
@@ -179,7 +173,6 @@ def get_audio(url: str, desired_format: str = "mp3") -> str:
         }],
         'quiet': True,
     }
-    
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -191,7 +184,7 @@ def get_audio(url: str, desired_format: str = "mp3") -> str:
         return downloaded_filename
     except Exception as e:
         print(f"Error downloading audio: {e}")
-        return f"Error downloading audio: {e}"
+        return ""
 
 def prompt_for_audio_source() -> str:
     """
@@ -226,7 +219,7 @@ def prompt_for_audio_source() -> str:
 
 def chat_with_api(prompt: str) -> str:
     """
-    A simple wrapper to chat with the GPT-4 API using the new interface.
+    A simple wrapper to interact with GPT-4 using the new client interface.
     """
     try:
         response = client.chat.completions.create(
@@ -313,7 +306,6 @@ def main():
             else:
                 print("Invalid choice.")
                 continue
-
             output_text = generate_output(text, task="summarize")
             pdf_filename = input("Enter output PDF filename for summary (e.g., summary.pdf): ").strip()
             text_to_pdf(output_text, pdf_filename)
@@ -389,7 +381,6 @@ def main():
             social_links = input("Enter social media or website links (comma-separated): ").strip()
             press_quotes = input("Enter any press quotes (optional): ").strip()
             epk_text = generate_epk(artist_name, background_info, achievements, social_links, press_quotes)
-            # Append video links if provided
             video_links = input("Enter video links (comma-separated, optional): ").strip()
             if video_links:
                 epk_text += "\n\nVideo Links: " + video_links
