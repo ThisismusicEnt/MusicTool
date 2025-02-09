@@ -1,8 +1,7 @@
 openai
-gradio>=7.0.0
+gradio=7.0.0
 yt-dlp
 python-dotenv
 fpdf
 requests
 beautifulsoup4
-
