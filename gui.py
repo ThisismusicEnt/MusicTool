@@ -9,15 +9,14 @@ from fpdf import FPDF
 import gradio as gr
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+import base64
+import mimetypes
 
 # Load environment variables from .env
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 if not openai.api_key:
     raise ValueError("OPENAI_API_KEY is not set in the .env file.")
-
-# Initialize OpenAI client using the new attribute interface
-client = openai.OpenAI(api_key=openai.api_key)
 
 ### HELPER FUNCTIONS ###
 
@@ -55,13 +54,13 @@ Please summarize the following text in a concise and clear manner:
         prompt = text
 
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4-0613",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=500,
             temperature=0.7,
         )
-        # Use attribute access instead of dictionary subscripting:
+        # Use dot-notation for the new API response format:
         return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error during GPT processing: {e}"
@@ -76,7 +75,7 @@ Release Date: {release_date}
 Album Description: {album_description}
 Output only the press release text."""
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4-0613",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=500,
@@ -92,7 +91,7 @@ def generate_social_media_post(song_title: str, artist_name: str) -> str:
 Write an engaging and concise social media post to promote the song "{song_title}" by {artist_name}.
 Output only the post text."""
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4-0613",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=150,
@@ -113,7 +112,7 @@ Include:
 - Press Quotes: {press_quotes}
 Output only the EPK text."""
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4-0613",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=600,
@@ -195,7 +194,7 @@ def get_audio(url: str, desired_format: str = "mp3") -> str:
 def chat_with_api(prompt: str) -> str:
     """A simple wrapper to interact with GPT-4."""
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4-0613",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=150,
@@ -383,7 +382,7 @@ def update_function_view(choice: str):
 with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     gr.Markdown("## ThisIsMusic.ai\nYour digital music consultant for music production, marketing, and creative functions.")
     
-    # Dropdown for function selection (including the new options)
+    # Dropdown for function selection (including new options)
     function_choice = gr.Dropdown(
         label="Select Function",
         choices=[
@@ -405,9 +404,14 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     
     # Groups for each function – only one visible at a time.
     with gr.Group(visible=True) as chat_group:
+        # Chat history appears at the top.
         chat_output = gr.Chatbot(label="Conversation", type="messages")
+        # Input field and send button.
         chat_input = gr.Textbox(label="Your Message", placeholder="Type your message here...", lines=2)
+        # NEW: Optional image upload for chat (returns binary data).
+        chat_image_input = gr.File(label="Upload Image (optional)", type="binary", file_types=["image"])
         chat_button = gr.Button("Send")
+        # Components for downloading the chat conversation.
         chat_pdf_filename = gr.Textbox(label="Chat PDF Filename", placeholder="chat_conversation.pdf")
         download_chat_button = gr.Button("Download Chat as PDF")
         chat_pdf_file = gr.File(label="Download Chat PDF")
@@ -471,7 +475,8 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
         epk_press_quotes = gr.Textbox(label="Press Quotes", placeholder="Enter press quotes...", lines=2)
         epk_video_links = gr.Textbox(label="Video Links", placeholder="Enter video links, separated by commas...", value="")
         epk_pdf_name = gr.Textbox(label="EPK PDF Filename", placeholder="epk.pdf")
-        epk_photos = gr.File(label="Upload Photos", file_count="multiple", type="filepath")
+        # Use type "binary" with an accept filter for images.
+        epk_photos = gr.File(label="Upload Photos", file_count="multiple", type="binary", file_types=["image"])
         epk_run = gr.Button("Generate EPK")
         epk_output = gr.Textbox(label="EPK Output", interactive=False)
     
@@ -479,7 +484,7 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
         crawl_url = gr.Textbox(label="Website URL", placeholder="Enter website URL to crawl...")
         crawl_pdf_name = gr.Textbox(label="Output PDF Filename", placeholder="article.pdf")
         crawl_include_images = gr.Radio(choices=["Yes", "No"], label="Include Images?", value="No")
-        crawl_uploaded_images = gr.File(label="Upload Additional Images", file_count="multiple", type="filepath")
+        crawl_uploaded_images = gr.File(label="Upload Additional Images", file_count="multiple", type="binary", file_types=["image"])
         crawl_run = gr.Button("Generate Website Article")
         crawl_output = gr.Textbox(label="Article Output", interactive=False)
         crawl_pdf_file = gr.File(label="Download PDF")
@@ -489,14 +494,38 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
         images_run = gr.Button("Get Web Images")
         images_gallery = gr.Gallery(label="Web Images", show_label=True)
     
-    # Shared outputs for generated text and PDFs (if needed)
-    function_output = gr.Textbox(label="Generated Text", interactive=False)
+    # Shared output for generated PDFs (if needed)
     pdf_file = gr.File(label="Download PDF")
     
     ### CALLBACK FUNCTIONS ###
-    def send_chat(message, history):
-        response = chat_with_api(message)
-        history = history + [{"role": "user", "content": message}, {"role": "assistant", "content": response}]
+    def send_chat(message, image, history):
+        # If an image is provided, encode it and include it in the message payload.
+        if image is not None:
+            if isinstance(image, dict) and "data" in image:
+                file_data = image["data"]
+                file_name = image.get("name", "uploaded_image")
+            else:
+                file_data = image
+                file_name = "uploaded_image"
+            mime_type, _ = mimetypes.guess_type(file_name)
+            if not mime_type:
+                mime_type = "application/octet-stream"
+            encoded_data = base64.b64encode(file_data).decode("utf-8")
+            image_str = f"data:{mime_type};base64,{encoded_data}"
+            message_content = [{"type": "text", "text": message}, {"type": "image_url", "image_url": {"url": image_str}}]
+        else:
+            message_content = message
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-4-0613",
+                messages=[{"role": "user", "content": message_content}],
+                max_tokens=150,
+                temperature=0.7,
+            )
+            reply = response.choices[0].message.content.strip()
+        except Exception as e:
+            reply = f"Error: {e}"
+        history = history + [{"role": "user", "content": message_content}, {"role": "assistant", "content": reply}]
         return "", history
 
     def transcribe_audio_gui(file, url, format_choice):
@@ -587,7 +616,7 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     )
     
     ### LINKING COMPONENT ACTIONS ###
-    chat_button.click(send_chat, inputs=[chat_input, chat_output], outputs=[chat_input, chat_output])
+    chat_button.click(send_chat, inputs=[chat_input, chat_image_input, chat_output], outputs=[chat_input, chat_output])
     transcribe_run.click(transcribe_audio_gui, inputs=[audio_file_input_trans, audio_url_input_trans, format_radio_trans], outputs=transcribe_result)
     lyrics_run.click(generate_lyrics_gui, inputs=[audio_file_input_lyrics, audio_url_input_lyrics, format_radio_lyrics, lyrics_pdf_name], outputs=[lyrics_output, pdf_file])
     article_run.click(generate_article_gui, inputs=[audio_file_input_article, audio_url_input_article, format_radio_article, article_pdf_name], outputs=[article_output, pdf_file])
@@ -600,9 +629,9 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     images_run.click(crawl_images_callback, inputs=[images_url], outputs=[images_gallery])
     download_chat_button.click(download_chat_pdf_callback, inputs=[chat_output, chat_pdf_filename], outputs=chat_pdf_file)
     
-import os
-
+    demo.launch(share=True, server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
+    
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 7860))
-    print("Binding to port:", port)  # Debug output
+    print("Binding to port:", port)
     demo.launch(server_name="0.0.0.0", server_port=port)

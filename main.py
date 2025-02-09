@@ -129,9 +129,10 @@ def text_to_pdf(text: str, output_filename: str) -> str:
         pdf.output(output_filename)
         return output_filename
     except Exception as e:
-        return f"Error generating PDF: {e}"
+        print(f"Error generating EPK: {e}")
+        return ""
 
-def create_pdf_with_images(text: str, output_filename: str, image_paths: list) -> str:
+def text_to_pdf(text: str, output_filename: str) -> None:
     """
     Creates a PDF that includes the provided text on the first page,
     and embeds each image (from image_paths) on subsequent pages.
@@ -497,28 +498,7 @@ def main():
             pdf_choice = input("Would you like to save this EPK as a PDF? (y/n): ").strip().lower()
             if pdf_choice == "y":
                 pdf_filename = input("Enter output PDF filename for the EPK (e.g., epk.pdf): ").strip()
-                pdf_path = create_epk_pdf(epk_text, pdf_filename)
-                print(f"PDF successfully saved as {pdf_path}")
-        
-        # Command: Crawl Website and Generate Article (PDF) with Optional Images
-        elif user_input.startswith("/crawl"):
-            crawl_url = input("Enter website URL to crawl: ").strip()
-            pdf_filename = input("Enter output PDF filename for the article (e.g., article.pdf): ").strip()
-            include_images_choice = input("Include images? (Yes/No): ").strip()
-            include_images = True if include_images_choice.lower() == "yes" else False
-            uploaded_images = []  # (Extend this if you want to allow file uploads in the future.)
-            article_text, pdf_path = crawl_and_generate_article(crawl_url, pdf_filename, include_images=include_images)
-            print("\n--- Crawled Website Article ---")
-            print(article_text)
-            print(f"PDF successfully saved as {pdf_path}")
-        
-        # Command: Crawl Website for Images Only
-        elif user_input.startswith("/webimages"):
-            images_url = input("Enter website URL for images: ").strip()
-            images = crawl_images_gui(images_url)
-            print("\n--- Downloaded Images ---")
-            for img in images:
-                print(img)
+                text_to_pdf(epk_text, pdf_filename)
         
         # Command: Chat normally for consulting/directed help
         elif user_input.startswith("/chat"):
