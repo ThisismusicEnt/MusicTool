@@ -60,6 +60,7 @@ Please summarize the following text in a concise and clear manner:
             max_tokens=500,
             temperature=0.7,
         )
+        # Use the new attribute access (not subscriptable)
         return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error during GPT processing: {e}"
@@ -220,11 +221,11 @@ def chat_with_api(prompt: str) -> str:
         return f"Error: {e}"
 
 ###############################################
-# ADDITIONAL HELPER FUNCTIONS FOR GUI ACTIONS
+# CALLBACK FUNCTIONS FOR GUI ACTIONS
 ###############################################
 
-# IMPORTANT: This function must be defined before it is used in the interface linking.
 def update_function_view(choice: str):
+    """Updates the visible input groups based on the selected function."""
     chat_vis = True if choice == "Chat" else False
     transcribe_vis = True if choice == "Transcribe Audio" else False
     lyrics_vis = True if choice == "Generate Lyrics (PDF)" else False
@@ -249,6 +250,31 @@ def update_function_view(choice: str):
         gr.update(visible=crawl_vis),
         gr.update(visible=images_vis)
     )
+
+# Callback for chat – now including an optional image upload (for image context)
+def send_chat(message, image, history):
+    """Sends a chat message to the API; if an image is uploaded, include its info."""
+    # If an image is uploaded, add a note to the prompt indicating that an image was provided.
+    image_info = ""
+    if image is not None:
+        # For demonstration, we simply note that an image was uploaded.
+        image_info = " [An image was uploaded along with this message.]"
+    full_message = message + image_info
+    response = chat_with_api(full_message)
+    history = history + [{"role": "user", "content": full_message}, {"role": "assistant", "content": response}]
+    return "", history
+
+def transcribe_audio_gui(file, url, format_choice):
+    if file is not None:
+        file_path = file.name
+    elif url:
+        if "youtube.com" in url.lower() or "youtu.be" in url.lower():
+            return "YouTube links are not supported for transcription. Please use another provider."
+        file_path = get_audio(url, desired_format=format_choice)
+    else:
+        return "No audio provided."
+    transcript = transcribe_audio(file_path)
+    return transcript
 
 def generate_lyrics_gui(file, url, format_choice, pdf_filename):
     transcript = transcribe_audio_gui(file, url, format_choice)
@@ -301,7 +327,7 @@ def epk_gui(artist_name, background, achievements, social_links, press_quotes, v
     epk_text = generate_epk(artist_name, background, achievements, social_links, press_quotes)
     if video_links.strip():
         epk_text += "\n\nVideo Links: " + video_links
-    pdf_path = create_epk_pdf(epk_text, pdf_filename, photos)
+    pdf_path = create_pdf_with_images(epk_text, pdf_filename, photos)
     return epk_text, pdf_path
 
 def crawl_article_gui(crawl_url, pdf_filename, include_images_choice, uploaded_images):
@@ -317,18 +343,6 @@ def crawl_images_callback(crawl_url):
 
 def download_chat_pdf_callback(chat_history, pdf_filename):
     return download_chat_pdf(chat_history, pdf_filename)
-
-def transcribe_audio_gui(file, url, format_choice):
-    if file is not None:
-        file_path = file.name
-    elif url:
-        if "youtube.com" in url.lower() or "youtu.be" in url.lower():
-            return "YouTube links are not supported for transcription. Please use another provider."
-        file_path = get_audio(url, desired_format=format_choice)
-    else:
-        return "No audio provided."
-    transcript = transcribe_audio(file_path)
-    return transcript
 
 ###############################################
 # FUNCTIONS USED FOR WEBSITE CRAWLING
@@ -427,6 +441,7 @@ def download_chat_pdf(history, pdf_filename):
 ###############################################
 # GRADIO GUI SETUP
 ###############################################
+
 with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     gr.Markdown("## ThisIsMusic.ai\nYour digital music consultant for music production, marketing, and creative functions.")
     
