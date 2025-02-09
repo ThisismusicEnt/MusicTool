@@ -598,5 +598,9 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     
     demo.launch(share=True, server_name="0.0.0.0", server_port=7861)
 
+import os
+
 if __name__ == "__main__":
- demo.launch(share=True, server_name="0.0.0.0", server_port=7861)
+    port = int(os.getenv("PORT", 7862))
+    demo.launch(server_name="0.0.0.0", server_port=port)
+
