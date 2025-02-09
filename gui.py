@@ -16,7 +16,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 if not openai.api_key:
     raise ValueError("OPENAI_API_KEY is not set in the .env file.")
 
-# Initialize OpenAI client with the API key
+# Initialize OpenAI client using the new attribute interface
 client = openai.OpenAI(api_key=openai.api_key)
 
 ### HELPER FUNCTIONS ###
@@ -61,7 +61,8 @@ Please summarize the following text in a concise and clear manner:
             max_tokens=500,
             temperature=0.7,
         )
-        return response["choices"][0]["message"]["content"].strip()
+        # Use attribute access instead of dictionary subscripting:
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error during GPT processing: {e}"
 
@@ -81,7 +82,7 @@ Output only the press release text."""
             max_tokens=500,
             temperature=0.7,
         )
-        return response["choices"][0]["message"]["content"].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error generating press release: {e}"
 
@@ -97,7 +98,7 @@ Output only the post text."""
             max_tokens=150,
             temperature=0.7,
         )
-        return response["choices"][0]["message"]["content"].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error generating social media post: {e}"
 
@@ -118,7 +119,7 @@ Output only the EPK text."""
             max_tokens=600,
             temperature=0.7,
         )
-        return response["choices"][0]["message"]["content"].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error generating EPK: {e}"
 
@@ -200,7 +201,7 @@ def chat_with_api(prompt: str) -> str:
             max_tokens=150,
             temperature=0.7,
         )
-        return response["choices"][0]["message"]["content"].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error: {e}"
 
