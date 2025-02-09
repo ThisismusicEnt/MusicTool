@@ -600,7 +600,8 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
 import os
 
 if __name__ == "__main__":
-    # Instead of using a default, use the PORT environment variable.
+    # This will raise a KeyError if PORT isn’t set, which is fine in Heroku
     port = int(os.environ["PORT"])
     demo.launch(server_name="0.0.0.0", server_port=port)
+
 
