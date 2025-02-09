@@ -604,3 +604,4 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 7860))
     print("Binding to port:", port)  # Debug output
     demo.launch(server_name="0.0.0.0", server_port=port)
+za
