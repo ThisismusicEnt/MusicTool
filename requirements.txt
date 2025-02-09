@@ -1,5 +1,5 @@
 openai
-gradio
+gradio>=7.0.0
 yt-dlp
 python-dotenv
 fpdf
