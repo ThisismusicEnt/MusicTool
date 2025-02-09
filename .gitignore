@@ -1,1 +1,9 @@
+# Virtual environment folders
+venv/
+.env
+
+# Build artifacts, caches, etc.
+*.pyc
+__pycache__/
+.cache/
 
