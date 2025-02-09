@@ -596,11 +596,11 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     images_run.click(crawl_images_callback, inputs=[images_url], outputs=[images_gallery])
     download_chat_button.click(download_chat_pdf_callback, inputs=[chat_output, chat_pdf_filename], outputs=chat_pdf_file)
     
-    demo.launch(share=True, server_name="0.0.0.0", server_port=7861)
 
 import os
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 7862))
+    # Get the port from the environment (Heroku sets this automatically)
+    port = int(os.environ.get("PORT", 7860))
+    # Make sure to bind to all interfaces ("0.0.0.0")
     demo.launch(server_name="0.0.0.0", server_port=port)
-
