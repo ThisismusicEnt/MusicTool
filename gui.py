@@ -16,9 +16,6 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 if not openai.api_key:
     raise ValueError("OPENAI_API_KEY is not set in the .env file.")
 
-# Initialize OpenAI client using the new attribute interface
-client = openai.OpenAI(api_key=openai.api_key)
-
 ### HELPER FUNCTIONS ###
 
 def transcribe_audio(audio_file_path: str) -> str:
@@ -55,14 +52,13 @@ Please summarize the following text in a concise and clear manner:
         prompt = text
 
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4-0613",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=500,
             temperature=0.7,
         )
-        # Use attribute access instead of dictionary subscripting:
-        return response.choices[0].message.content.strip()
+        return response["choices"][0]["message"]["content"].strip()
     except Exception as e:
         return f"Error during GPT processing: {e}"
 
@@ -76,13 +72,13 @@ Release Date: {release_date}
 Album Description: {album_description}
 Output only the press release text."""
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4-0613",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=500,
             temperature=0.7,
         )
-        return response.choices[0].message.content.strip()
+        return response["choices"][0]["message"]["content"].strip()
     except Exception as e:
         return f"Error generating press release: {e}"
 
@@ -92,13 +88,13 @@ def generate_social_media_post(song_title: str, artist_name: str) -> str:
 Write an engaging and concise social media post to promote the song "{song_title}" by {artist_name}.
 Output only the post text."""
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4-0613",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=150,
             temperature=0.7,
         )
-        return response.choices[0].message.content.strip()
+        return response["choices"][0]["message"]["content"].strip()
     except Exception as e:
         return f"Error generating social media post: {e}"
 
@@ -110,16 +106,19 @@ Include:
 - Background Information: {background_info}
 - Achievements: {achievements}
 - Social Media/Website Links: {social_links}
-- Press Quotes: {press_quotes}
-Output only the EPK text."""
+"""
+    if press_quotes:
+        prompt += f"- Press Quotes: {press_quotes}\n"
+    prompt += "\nThe EPK should be engaging, professional, and suitable for media and industry professionals. Output only the EPK text."
+    
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4-0613",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=600,
             temperature=0.7,
         )
-        return response.choices[0].message.content.strip()
+        return response["choices"][0]["message"]["content"].strip()
     except Exception as e:
         return f"Error generating EPK: {e}"
 
@@ -131,6 +130,7 @@ def text_to_pdf(text: str, output_filename: str) -> str:
         pdf.set_font("Arial", size=12)
         pdf.multi_cell(0, 10, text)
         pdf.output(output_filename)
+        print(f"PDF successfully saved as {output_filename}")
         return output_filename
     except Exception as e:
         return f"Error generating PDF: {e}"
@@ -139,7 +139,6 @@ def create_epk_pdf(epk_text: str, output_filename: str, photos: list = None) -> 
     """
     Creates a PDF for the EPK that includes the generated EPK text.
     If photos are provided, they are embedded on a new page.
-    (Video links are appended to the text in the callback.)
     """
     try:
         pdf = FPDF()
@@ -164,7 +163,7 @@ def create_epk_pdf(epk_text: str, output_filename: str, photos: list = None) -> 
 
 def get_audio(url: str, desired_format: str = "mp3") -> str:
     """
-    Uses yt-dlp to download audio from a URL and convert it to the desired format.
+    Uses yt-dlp to download audio from a given URL and convert it to the desired format.
     Returns the full file path of the downloaded audio.
     """
     downloads_dir = os.path.join(os.getcwd(), "downloads")
@@ -192,190 +191,76 @@ def get_audio(url: str, desired_format: str = "mp3") -> str:
     except Exception as e:
         return f"Error downloading audio: {e}"
 
+def prompt_for_audio_source() -> str:
+    """
+    Prompts the user whether to provide a local file or a link for audio.
+    If a link is provided, it downloads the audio using get_audio.
+    Returns the local file path to the audio.
+    """
+    mode = input("Use (1) file or (2) link? Enter 1 or 2: ").strip()
+    if mode == "1":
+        audio_path = input("Enter the path to your audio file: ").strip()
+        return audio_path
+    elif mode == "2":
+        url = input("Enter the audio URL: ").strip()
+        print("Choose audio format:")
+        print("  1) MP3")
+        print("  2) WAV")
+        fmt_choice = input("Enter 1 or 2: ").strip()
+        if fmt_choice == "1":
+            desired_format = "mp3"
+        elif fmt_choice == "2":
+            desired_format = "wav"
+        else:
+            print("Invalid choice, defaulting to MP3.")
+            desired_format = "mp3"
+        downloaded = get_audio(url, desired_format=desired_format)
+        if downloaded.startswith("Error downloading audio:"):
+            print("This video cannot be downloaded.")
+            return ""
+        else:
+            return downloaded
+    else:
+        print("Invalid choice.")
+        return ""
+
 def chat_with_api(prompt: str) -> str:
     """A simple wrapper to interact with GPT-4."""
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4-0613",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=150,
             temperature=0.7,
         )
-        return response.choices[0].message.content.strip()
+        return response["choices"][0]["message"]["content"].strip()
     except Exception as e:
         return f"Error: {e}"
 
 ###############################################
-# NEW HELPER FUNCTION: Create PDF with Images
+# NEW FUNCTION: Process prompt with image input
 ###############################################
-def create_pdf_with_images(text: str, output_filename: str, image_paths: list) -> str:
+def generate_output_with_image(prompt: str, image_url: str) -> str:
     """
-    Creates a PDF that includes the provided text on the first page,
-    and embeds each image (from image_paths) on subsequent pages.
-    """
-    try:
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-        pdf.multi_cell(0, 10, text)
-        for img in image_paths:
-            pdf.add_page()
-            try:
-                pdf.image(img, w=100)
-            except Exception as e:
-                pdf.cell(0, 10, f"Error embedding image {img}: {e}", ln=True)
-        pdf.output(output_filename)
-        return output_filename
-    except Exception as e:
-        return f"Error generating PDF with images: {e}"
-
-###############################################
-# NEW FUNCTION: Crawl Website and Generate Article PDF with Optional Images
-###############################################
-def crawl_and_generate_article(url: str, pdf_filename: str, include_images: bool = False) -> tuple[str, str]:
-    """
-    Crawls the given website URL using BeautifulSoup, extracts its primary textual content,
-    and then uses GPT-4 to generate a formal, well-structured article based on that content.
-    Optionally, if include_images is True, it downloads image URLs from the page and
-    uses create_pdf_with_images to embed them in the resulting PDF.
-    
-    Returns:
-      A tuple (article_text, pdf_file_path).
+    Uses GPT-4 (image-capable model) to process a prompt along with an image.
+    The image is provided as an URL.
     """
     try:
-        response = requests.get(url)
-        response.raise_for_status()
+        response = openai.ChatCompletion.create(
+            model="gpt-4o",
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": image_url}}
+                ]
+            }],
+            max_tokens=500,
+            temperature=0.7,
+        )
+        return response["choices"][0]["message"]["content"].strip()
     except Exception as e:
-        return (f"Error retrieving the website: {e}", None)
-    
-    try:
-        soup = BeautifulSoup(response.text, 'html.parser')
-        # Remove script and style elements
-        for tag in soup(["script", "style"]):
-            tag.decompose()
-        raw_text = soup.get_text(separator="\n")
-        lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
-        cleaned_text = "\n".join(lines)
-        if len(cleaned_text) > 10000:
-            cleaned_text = cleaned_text[:10000]
-    except Exception as e:
-        return (f"Error parsing website content: {e}", None)
-    
-    article_text = generate_output(cleaned_text, task="article")
-    
-    if include_images:
-        image_tags = soup.find_all("img")
-        image_urls = []
-        for tag in image_tags:
-            src = tag.get("src")
-            if src:
-                if not src.startswith("http"):
-                    src = urljoin(url, src)
-                image_urls.append(src)
-        downloaded_images = []
-        downloads_dir = os.path.join(os.getcwd(), "downloads")
-        os.makedirs(downloads_dir, exist_ok=True)
-        for img_url in image_urls:
-            try:
-                img_response = requests.get(img_url, stream=True, timeout=10)
-                img_response.raise_for_status()
-                img_filename = os.path.join(downloads_dir, f"img_{datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')}.jpg")
-                with open(img_filename, "wb") as f:
-                    for chunk in img_response.iter_content(chunk_size=8192):
-                        f.write(chunk)
-                downloaded_images.append(img_filename)
-            except Exception as e:
-                print(f"Error downloading image {img_url}: {e}")
-        pdf_path = create_pdf_with_images(article_text, pdf_filename, downloaded_images)
-    else:
-        pdf_path = text_to_pdf(article_text, pdf_filename)
-    
-    return (article_text, pdf_path)
-
-###############################################
-# NEW FUNCTION: Crawl Website for Images Only
-###############################################
-def crawl_images_gui(crawl_url: str) -> list:
-    """
-    Crawls the given website URL using BeautifulSoup, extracts all image URLs,
-    downloads them, and returns a list of local file paths to the downloaded images.
-    """
-    try:
-        response = requests.get(crawl_url)
-        response.raise_for_status()
-    except Exception as e:
-        return [f"Error retrieving website: {e}"]
-    
-    try:
-        soup = BeautifulSoup(response.text, 'html.parser')
-        image_tags = soup.find_all("img")
-        image_urls = []
-        for tag in image_tags:
-            src = tag.get("src")
-            if src:
-                if not src.startswith("http"):
-                    src = urljoin(crawl_url, src)
-                image_urls.append(src)
-    except Exception as e:
-        return [f"Error parsing website content: {e}"]
-
-    downloaded_images = []
-    downloads_dir = os.path.join(os.getcwd(), "downloads")
-    os.makedirs(downloads_dir, exist_ok=True)
-    for img_url in image_urls:
-        try:
-            img_response = requests.get(img_url, stream=True, timeout=10)
-            img_response.raise_for_status()
-            timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S%f")
-            img_filename = os.path.join(downloads_dir, f"webimg_{timestamp}.jpg")
-            with open(img_filename, "wb") as f:
-                for chunk in img_response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            downloaded_images.append(img_filename)
-        except Exception as e:
-            print(f"Error downloading image {img_url}: {e}")
-    return downloaded_images
-
-###############################################
-# CALLBACK: Download Chat Conversation as PDF
-###############################################
-def download_chat_pdf(history, pdf_filename):
-    """Converts the chat conversation history into a PDF file."""
-    if not pdf_filename:
-        pdf_filename = "chat_conversation.pdf"
-    conversation_text = ""
-    for msg in history:
-        conversation_text += f"{msg['role'].capitalize()}: {msg['content']}\n\n"
-    return text_to_pdf(conversation_text, pdf_filename)
-
-###############################################
-# CALLBACK: Update Visible Groups Based on Dropdown Selection
-###############################################
-def update_function_view(choice: str):
-    chat_vis = True if choice == "Chat" else False
-    transcribe_vis = True if choice == "Transcribe Audio" else False
-    lyrics_vis = True if choice == "Generate Lyrics (PDF)" else False
-    article_vis = True if choice == "Generate Article (PDF)" else False
-    summarize_vis = True if choice == "Summarize Text (PDF)" else False
-    getaudio_vis = True if choice == "Get Audio" else False
-    pressrelease_vis = True if choice == "Press Release (PDF)" else False
-    social_vis = True if choice == "Social Media Post" else False
-    epk_vis = True if choice == "Generate EPK (PDF)" else False
-    crawl_vis = True if choice == "Generate Website Article (PDF)" else False
-    web_images_vis = True if choice == "Get Web Images" else False
-    return (
-        gr.update(visible=chat_vis),
-        gr.update(visible=transcribe_vis),
-        gr.update(visible=lyrics_vis),
-        gr.update(visible=article_vis),
-        gr.update(visible=summarize_vis),
-        gr.update(visible=getaudio_vis),
-        gr.update(visible=pressrelease_vis),
-        gr.update(visible=social_vis),
-        gr.update(visible=epk_vis),
-        gr.update(visible=crawl_vis),
-        gr.update(visible=web_images_vis)
-    )
+        return f"Error during GPT processing with image: {e}"
 
 ###############################################
 # GRADIO GUI SETUP
@@ -383,7 +268,7 @@ def update_function_view(choice: str):
 with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     gr.Markdown("## ThisIsMusic.ai\nYour digital music consultant for music production, marketing, and creative functions.")
     
-    # Dropdown for function selection (including the new options)
+    # Dropdown for function selection (including new options)
     function_choice = gr.Dropdown(
         label="Select Function",
         choices=[
@@ -397,7 +282,8 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
             "Social Media Post",
             "Generate EPK (PDF)",
             "Generate Website Article (PDF)",
-            "Get Web Images"
+            "Get Web Images",
+            "Image-based Response"
         ],
         value="Chat",
         info="Select a function to perform. The corresponding input fields will appear below."
@@ -489,6 +375,12 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
         images_run = gr.Button("Get Web Images")
         images_gallery = gr.Gallery(label="Web Images", show_label=True)
     
+    with gr.Group(visible=False) as image_group:
+        image_prompt_input = gr.Textbox(label="Image Prompt", placeholder="Enter prompt for image-based processing...")
+        image_url_input = gr.Textbox(label="Image URL", placeholder="Enter the image URL...")
+        image_run = gr.Button("Process Image")
+        image_output = gr.Textbox(label="Image-based Response", interactive=False)
+    
     # Shared outputs for generated text and PDFs (if needed)
     function_output = gr.Textbox(label="Generated Text", interactive=False)
     pdf_file = gr.File(label="Download PDF")
@@ -576,14 +468,46 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
         images = crawl_images_gui(crawl_url)
         return images
 
+    def image_process_gui(prompt, image_url):
+        result = generate_output_with_image(prompt, image_url)
+        return result
+
     def download_chat_pdf_callback(chat_history, pdf_filename):
         return download_chat_pdf(chat_history, pdf_filename)
 
     ### LINKING THE DROPDOWN TO UPDATE VISIBLE GROUPS ###
+    def update_function_view(choice: str):
+        chat_vis = True if choice == "Chat" else False
+        transcribe_vis = True if choice == "Transcribe Audio" else False
+        lyrics_vis = True if choice == "Generate Lyrics (PDF)" else False
+        article_vis = True if choice == "Generate Article (PDF)" else False
+        summarize_vis = True if choice == "Summarize Text (PDF)" else False
+        getaudio_vis = True if choice == "Get Audio" else False
+        pressrelease_vis = True if choice == "Press Release (PDF)" else False
+        social_vis = True if choice == "Social Media Post" else False
+        epk_vis = True if choice == "Generate EPK (PDF)" else False
+        crawl_vis = True if choice == "Generate Website Article (PDF)" else False
+        images_vis = True if choice == "Get Web Images" else False
+        image_vis = True if choice == "Image-based Response" else False
+        return (
+            gr.update(visible=chat_vis),
+            gr.update(visible=transcribe_vis),
+            gr.update(visible=lyrics_vis),
+            gr.update(visible=article_vis),
+            gr.update(visible=summarize_vis),
+            gr.update(visible=getaudio_vis),
+            gr.update(visible=pressrelease_vis),
+            gr.update(visible=social_vis),
+            gr.update(visible=epk_vis),
+            gr.update(visible=crawl_vis),
+            gr.update(visible=images_vis),
+            gr.update(visible=image_vis)
+        )
+
     function_choice.change(
         update_function_view,
         inputs=function_choice,
-        outputs=[chat_group, transcribe_group, lyrics_group, article_group, summarize_group, getaudio_group, pressrelease_group, social_group, epk_group, crawl_group, images_group]
+        outputs=[chat_group, transcribe_group, lyrics_group, article_group, summarize_group, getaudio_group, pressrelease_group, social_group, epk_group, crawl_group, images_group, image_group]
     )
     
     ### LINKING COMPONENT ACTIONS ###
@@ -598,11 +522,7 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     epk_run.click(epk_gui, inputs=[epk_artist_name, epk_background, epk_achievements, epk_social_links, epk_press_quotes, epk_video_links, epk_pdf_name, epk_photos], outputs=[epk_output, pdf_file])
     crawl_run.click(crawl_article_gui, inputs=[crawl_url, crawl_pdf_name, crawl_include_images, crawl_uploaded_images], outputs=[crawl_output, crawl_pdf_file])
     images_run.click(crawl_images_callback, inputs=[images_url], outputs=[images_gallery])
+    image_run.click(image_process_gui, inputs=[image_prompt_input, image_url_input], outputs=image_output)
     download_chat_button.click(download_chat_pdf_callback, inputs=[chat_output, chat_pdf_filename], outputs=chat_pdf_file)
     
-import os
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 7860))
-    print("Binding to port:", port)  # Debug output
-    demo.launch(server_name="0.0.0.0", server_port=port)
+    demo.launch(share=True, server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
