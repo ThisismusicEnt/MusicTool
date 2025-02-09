@@ -60,7 +60,8 @@ Please summarize the following text in a concise and clear manner:
             max_tokens=500,
             temperature=0.7,
         )
-        return response["choices"][0]["message"]["content"].strip()
+        # Use dot-notation for the new API response format:
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error during GPT processing: {e}"
 
@@ -80,7 +81,7 @@ Output only the press release text."""
             max_tokens=500,
             temperature=0.7,
         )
-        return response["choices"][0]["message"]["content"].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error generating press release: {e}"
 
@@ -96,7 +97,7 @@ Output only the post text."""
             max_tokens=150,
             temperature=0.7,
         )
-        return response["choices"][0]["message"]["content"].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error generating social media post: {e}"
 
@@ -117,7 +118,7 @@ Output only the EPK text."""
             max_tokens=600,
             temperature=0.7,
         )
-        return response["choices"][0]["message"]["content"].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error generating EPK: {e}"
 
@@ -199,7 +200,7 @@ def chat_with_api(prompt: str) -> str:
             max_tokens=150,
             temperature=0.7,
         )
-        return response["choices"][0]["message"]["content"].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error: {e}"
 
@@ -474,7 +475,7 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
         epk_press_quotes = gr.Textbox(label="Press Quotes", placeholder="Enter press quotes...", lines=2)
         epk_video_links = gr.Textbox(label="Video Links", placeholder="Enter video links, separated by commas...", value="")
         epk_pdf_name = gr.Textbox(label="EPK PDF Filename", placeholder="epk.pdf")
-        # UPDATED: Use type "binary" with an accept filter for images.
+        # Use type "binary" with an accept filter for images.
         epk_photos = gr.File(label="Upload Photos", file_count="multiple", type="binary", file_types=["image"])
         epk_run = gr.Button("Generate EPK")
         epk_output = gr.Textbox(label="EPK Output", interactive=False)
@@ -521,7 +522,7 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
                 max_tokens=150,
                 temperature=0.7,
             )
-            reply = response["choices"][0]["message"]["content"].strip()
+            reply = response.choices[0].message.content.strip()
         except Exception as e:
             reply = f"Error: {e}"
         history = history + [{"role": "user", "content": message_content}, {"role": "assistant", "content": reply}]
@@ -631,7 +632,6 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     demo.launch(share=True, server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
     
 if __name__ == "__main__":
-    # This forces using the Heroku-assigned port if available.
     port = int(os.environ.get("PORT", 7860))
     print("Binding to port:", port)
     demo.launch(server_name="0.0.0.0", server_port=port)
