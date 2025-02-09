@@ -600,7 +600,7 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
 import os
 
 if __name__ == "__main__":
-    # Force using the port provided by Heroku (do not use a default value)
-    port = int(os.environ["PORT"])
-    print("Binding to port:", port)  # Temporary debug print to verify
+    # This forces using the Heroku-assigned port
+    port = int(os.environ.get("PORT", 7860))
+    print("Binding to port:", port)  # Debug output
     demo.launch(server_name="0.0.0.0", server_port=port)
