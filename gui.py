@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import os
 import datetime
-import base64
 import openai
 import yt_dlp
 import requests
@@ -200,7 +199,7 @@ def prompt_for_audio_source() -> str:
         url = input("Enter the audio URL: ").strip()
         file_path = get_audio(url, desired_format="mp3")
         if file_path.startswith("Error"):
-            print("This video cannot be downloaded.")
+            print("This video cannot be downloaded. Please use a supported provider.")
             return ""
         return file_path
     else:
@@ -224,17 +223,32 @@ def chat_with_api(prompt: str) -> str:
 # ADDITIONAL HELPER FUNCTIONS FOR GUI ACTIONS
 ###############################################
 
-def transcribe_audio_gui(file, url, format_choice):
-    if file is not None:
-        file_path = file.name
-    elif url:
-        if "youtube.com" in url.lower() or "youtu.be" in url.lower():
-            return "YouTube links are not supported for transcription. Please use another provider."
-        file_path = get_audio(url, desired_format=format_choice)
-    else:
-        return "No audio provided."
-    transcript = transcribe_audio(file_path)
-    return transcript
+# IMPORTANT: This function must be defined before it is used in the interface linking.
+def update_function_view(choice: str):
+    chat_vis = True if choice == "Chat" else False
+    transcribe_vis = True if choice == "Transcribe Audio" else False
+    lyrics_vis = True if choice == "Generate Lyrics (PDF)" else False
+    article_vis = True if choice == "Generate Article (PDF)" else False
+    summarize_vis = True if choice == "Summarize Text (PDF)" else False
+    getaudio_vis = True if choice == "Get Audio" else False
+    pressrelease_vis = True if choice == "Press Release (PDF)" else False
+    social_vis = True if choice == "Social Media Post" else False
+    epk_vis = True if choice == "Generate EPK (PDF)" else False
+    crawl_vis = True if choice == "Generate Website Article (PDF)" else False
+    images_vis = True if choice == "Get Web Images" else False
+    return (
+        gr.update(visible=chat_vis),
+        gr.update(visible=transcribe_vis),
+        gr.update(visible=lyrics_vis),
+        gr.update(visible=article_vis),
+        gr.update(visible=summarize_vis),
+        gr.update(visible=getaudio_vis),
+        gr.update(visible=pressrelease_vis),
+        gr.update(visible=social_vis),
+        gr.update(visible=epk_vis),
+        gr.update(visible=crawl_vis),
+        gr.update(visible=images_vis)
+    )
 
 def generate_lyrics_gui(file, url, format_choice, pdf_filename):
     transcript = transcribe_audio_gui(file, url, format_choice)
@@ -304,8 +318,20 @@ def crawl_images_callback(crawl_url):
 def download_chat_pdf_callback(chat_history, pdf_filename):
     return download_chat_pdf(chat_history, pdf_filename)
 
+def transcribe_audio_gui(file, url, format_choice):
+    if file is not None:
+        file_path = file.name
+    elif url:
+        if "youtube.com" in url.lower() or "youtu.be" in url.lower():
+            return "YouTube links are not supported for transcription. Please use another provider."
+        file_path = get_audio(url, desired_format=format_choice)
+    else:
+        return "No audio provided."
+    transcript = transcribe_audio(file_path)
+    return transcript
+
 ###############################################
-# FUNCTIONS USED IN THE GUI THAT ARE PART OF CRAWLING
+# FUNCTIONS USED FOR WEBSITE CRAWLING
 ###############################################
 
 def crawl_and_generate_article(url: str, pdf_filename: str, include_images: bool = False) -> tuple[str, str]:
@@ -388,6 +414,15 @@ def crawl_images_gui(crawl_url: str) -> list:
         except Exception as e:
             print(f"Error downloading image {img_url}: {e}")
     return downloaded_images
+
+def download_chat_pdf(history, pdf_filename):
+    """Converts the chat conversation history into a PDF file."""
+    if not pdf_filename:
+        pdf_filename = "chat_conversation.pdf"
+    conversation_text = ""
+    for msg in history:
+        conversation_text += f"{msg['role'].capitalize()}: {msg['content']}\n\n"
+    return text_to_pdf(conversation_text, pdf_filename)
 
 ###############################################
 # GRADIO GUI SETUP
@@ -502,16 +537,17 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
         images_run = gr.Button("Get Web Images")
         images_gallery = gr.Gallery(label="Web Images", show_label=True)
     
-    # Shared output for generated PDFs
+    # Shared output for generated PDFs (if needed)
     pdf_file = gr.File(label="Download PDF")
     
     ###############################################
-    # LINKING CALLBACK FUNCTIONS
+    # LINKING CALLBACK FUNCTIONS TO COMPONENTS
     ###############################################
     function_choice.change(
         update_function_view,
         inputs=function_choice,
-        outputs=[chat_group, transcribe_group, lyrics_group, article_group, summarize_group, getaudio_group, pressrelease_group, social_group, epk_group, crawl_group, images_group]
+        outputs=[chat_group, transcribe_group, lyrics_group, article_group, summarize_group,
+                 getaudio_group, pressrelease_group, social_group, epk_group, crawl_group, images_group]
     )
     
     chat_button.click(send_chat, inputs=[chat_input, chat_image, chat_output], outputs=[chat_input, chat_output])
@@ -527,8 +563,12 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     images_run.click(crawl_images_callback, inputs=[images_url], outputs=[images_gallery])
     download_chat_button.click(download_chat_pdf_callback, inputs=[chat_output, chat_pdf_filename], outputs=chat_pdf_file)
     
-    # Launch the Gradio demo; bind to the Heroku-assigned port if available.
+    ###############################################
+    # LAUNCH THE GRADIO INTERFACE
+    ###############################################
     port = int(os.environ.get("PORT", 7860))
     print("Binding to port:", port)
-    demo.launch(share=True, server_name="0.0.0.0", server_port=port)
+    demo.launch(server_name="0.0.0.0", server_port=port, share=True)
 
+if __name__ == "__main__":
+    pass
