@@ -22,10 +22,7 @@ client = openai.OpenAI(api_key=openai.api_key)
 ### HELPER FUNCTIONS ###
 
 def transcribe_audio(audio_file_path: str) -> str:
-    """
-    Transcribes an audio file using OpenAI's Whisper API.
-    Expects a valid audio file path (e.g., .mp3, .wav).
-    """
+    """Transcribes an audio file using OpenAI's Whisper API."""
     try:
         with open(audio_file_path, "rb") as audio_file:
             transcript = openai.Audio.transcribe("whisper-1", audio_file)
@@ -126,7 +123,6 @@ Include the following details:
     if press_quotes:
         prompt += f"- Press Quotes: {press_quotes}\n"
     prompt += "\nThe EPK should be engaging, professional, and suitable for media and industry professionals. Output only the EPK text."
-    
     try:
         response = client.chat.completions.create(
             model="gpt-4-0613",
@@ -184,7 +180,6 @@ def create_epk_pdf(epk_text: str, output_filename: str, photos: list = None) -> 
 ###############################################
 # UPDATED DOWNLOAD & PROCESSING FUNCTIONS
 ###############################################
-
 def get_audio(url: str, desired_format: str = "mp3") -> str:
     """
     Uses yt-dlp to download audio from a given URL and convert it to the desired format.
@@ -192,7 +187,6 @@ def get_audio(url: str, desired_format: str = "mp3") -> str:
     """
     downloads_dir = os.path.join(os.getcwd(), "downloads")
     os.makedirs(downloads_dir, exist_ok=True)
-    
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     output_template = os.path.join(downloads_dir, f"{timestamp}_%(title)s.%(ext)s")
     
@@ -312,7 +306,6 @@ def crawl_and_generate_article(url: str, pdf_filename: str, include_images: bool
     
     try:
         soup = BeautifulSoup(response.text, 'html.parser')
-        # Remove script and style elements
         for tag in soup(["script", "style"]):
             tag.decompose()
         raw_text = soup.get_text(separator="\n")
@@ -465,8 +458,7 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     with gr.Group(visible=True) as chat_group:
         chat_output = gr.Chatbot(label="Conversation", type="messages")
         chat_input = gr.Textbox(label="Your Message", placeholder="Type your message here...", lines=2)
-        # Added a new file input for image attachments in chat
-        chat_image = gr.File(label="Attach Image (optional)", file_count="single", type="filepath")
+        # Removed image attachment input from chat (per request)
         chat_button = gr.Button("Send")
         chat_pdf_filename = gr.Textbox(label="Chat PDF Filename", placeholder="chat_conversation.pdf")
         download_chat_button = gr.Button("Download Chat as PDF")
