@@ -13,7 +13,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 if openai.api_key is None:
     raise ValueError("OPENAI_API_KEY is not set in the .env file.")
 
-### HELPER FUNCTIONS ###
+### FUNCTION DEFINITIONS ###
 
 def transcribe_audio(audio_file_path: str) -> str:
     """
@@ -184,6 +184,7 @@ def get_audio(url: str, desired_format: str = "mp3") -> str:
     """
     Uses yt-dlp to download audio from a given URL and convert it to the desired format.
     Returns the full file path of the downloaded audio. (Allows YouTube links.)
+    This version includes a progress hook to print download progress.
     """
     downloads_dir = os.path.join(os.getcwd(), "downloads")
     os.makedirs(downloads_dir, exist_ok=True)
@@ -191,13 +192,12 @@ def get_audio(url: str, desired_format: str = "mp3") -> str:
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     output_template = os.path.join(downloads_dir, f"{timestamp}_%(title)s.%(ext)s")
     
-    # Define a progress hook for debugging
     def progress_hook(d):
         if d.get("status") == "downloading":
-            print(f"Downloading... {d.get('downloaded_bytes', 0)} bytes downloaded.")
+            print(f"Downloading... {d.get('downloaded_bytes', 0)} bytes downloaded.", flush=True)
         elif d.get("status") == "finished":
-            print("Download finished, now post-processing...")
-
+            print("Download finished, now post-processing...", flush=True)
+    
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': output_template,
@@ -205,9 +205,8 @@ def get_audio(url: str, desired_format: str = "mp3") -> str:
             'key': 'FFmpegExtractAudio',
             'preferredcodec': desired_format,
             'preferredquality': '192',
-            'postprocessor_args': ['-nostdin']
         }],
-        'quiet': True,
+        'quiet': False,
         'socket_timeout': 30,
         'progress_hooks': [progress_hook],
     }
@@ -219,8 +218,10 @@ def get_audio(url: str, desired_format: str = "mp3") -> str:
             base, ext = os.path.splitext(downloaded_filename)
             if ext.lower() != f".{desired_format}":
                 downloaded_filename = base + f".{desired_format}"
+            print(f"Audio downloaded to: {downloaded_filename}", flush=True)
             return downloaded_filename
     except Exception as e:
+        print(f"Error in get_audio: {e}", flush=True)
         return f"Error downloading audio: {e}"
 
 def prompt_for_audio_source() -> str:
