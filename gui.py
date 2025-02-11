@@ -61,6 +61,7 @@ Please summarize the following text in a concise and clear manner:
             max_tokens=500,
             temperature=0.7,
         )
+        # Use attribute access instead of dictionary subscripting:
         return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error during GPT processing: {e}"
@@ -133,13 +134,13 @@ def text_to_pdf(text: str, output_filename: str) -> str:
         print(f"PDF successfully saved as {output_filename}")
         return output_filename
     except Exception as e:
-        print(f"Error generating PDF: {e}")
         return f"Error generating PDF: {e}"
 
 def create_epk_pdf(epk_text: str, output_filename: str, photos: list = None) -> str:
     """
     Creates a PDF for the EPK that includes the generated EPK text.
     If photos are provided, they are embedded on a new page.
+    (Video links are appended to the text in the callback.)
     """
     try:
         pdf = FPDF()
@@ -160,36 +161,17 @@ def create_epk_pdf(epk_text: str, output_filename: str, photos: list = None) -> 
         pdf.output(output_filename)
         return output_filename
     except Exception as e:
-        print(f"Error creating EPK PDF: {e}")
         return f"Error creating EPK PDF: {e}"
-
-###############################################
-# UPDATED DOWNLOAD & PROCESSING FUNCTIONS
-###############################################
 
 def get_audio(url: str, desired_format: str = "mp3") -> str:
     """
-    Uses yt-dlp to download audio from a given URL and convert it to the desired format.
-    Includes progress output and returns the full file path of the downloaded audio.
+    Uses yt-dlp to download audio from a URL and convert it to the desired format.
+    Returns the full file path of the downloaded audio.
     """
     downloads_dir = os.path.join(os.getcwd(), "downloads")
     os.makedirs(downloads_dir, exist_ok=True)
-    
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     output_template = os.path.join(downloads_dir, f"{timestamp}_%(title)s.%(ext)s")
-    
-    def progress_hook(d):
-        if d.get("status") == "downloading":
-            downloaded = d.get("downloaded_bytes", 0)
-            total = d.get("total_bytes") or d.get("total_bytes_estimate")
-            if total:
-                percent = downloaded / total * 100
-                print(f"Downloading... {downloaded} of {total} bytes ({percent:.2f}%)", flush=True)
-            else:
-                print(f"Downloading... {downloaded} bytes downloaded.", flush=True)
-        elif d.get("status") == "finished":
-            print("Download finished; now post-processing...", flush=True)
-    
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': output_template,
@@ -198,9 +180,7 @@ def get_audio(url: str, desired_format: str = "mp3") -> str:
             'preferredcodec': desired_format,
             'preferredquality': '192',
         }],
-        'quiet': False,
-        'socket_timeout': 30,
-        'progress_hooks': [progress_hook],
+        'quiet': True,
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -209,86 +189,60 @@ def get_audio(url: str, desired_format: str = "mp3") -> str:
             base, ext = os.path.splitext(downloaded_filename)
             if ext.lower() != f".{desired_format}":
                 downloaded_filename = base + f".{desired_format}"
-            print(f"Audio downloaded to: {downloaded_filename}", flush=True)
             return downloaded_filename
     except Exception as e:
-        print(f"Error in get_audio: {e}", flush=True)
         return f"Error downloading audio: {e}"
 
-def transcribe_audio_gui(file, url, format_choice):
-    downloads_dir = os.path.join(os.getcwd(), "downloads")
-    if file is not None:
-        file_path = file.name
-    elif url:
-        # Allow YouTube links here
-        file_path = get_audio(url, desired_format=format_choice)
-    else:
-        return "No audio provided."
-    transcript = transcribe_audio(file_path)
-    # Delete the temporary downloaded file, if applicable.
-    if file_path.startswith(downloads_dir):
-        try:
-            os.remove(file_path)
-            print("Temporary audio file deleted.", flush=True)
-        except Exception as e:
-            print(f"Error deleting file: {e}", flush=True)
-    return transcript
-
-def generate_lyrics_gui(file, url, format_choice, pdf_filename):
-    transcript = transcribe_audio_gui(file, url, format_choice)
-    if transcript.startswith("Error") or transcript == "No audio provided.":
-        return transcript, None
-    lyrics = generate_output(transcript, task="lyrics")
-    pdf_path = text_to_pdf(lyrics, pdf_filename)
-    return lyrics, pdf_path
-
-def generate_article_gui(file, url, format_choice, pdf_filename):
-    transcript = transcribe_audio_gui(file, url, format_choice)
-    if transcript.startswith("Error") or transcript == "No audio provided.":
-        return transcript, None
-    article = generate_output(transcript, task="article")
-    pdf_path = text_to_pdf(article, pdf_filename)
-    return article, pdf_path
-
-def get_audio_gui(url, format_choice):
-    # For the "Get Audio" function, simply return the downloaded file path.
-    file_path = get_audio(url, desired_format=format_choice)
-    return file_path
-
-def press_release_gui(song_title, artist_name, release_date, description, pdf_filename):
-    pr = generate_press_release(song_title, artist_name, release_date, description)
-    pdf_path = text_to_pdf(pr, pdf_filename)
-    return pr, pdf_path
-
-def social_post_gui(song_title, artist_name):
-    post = generate_social_media_post(song_title, artist_name)
-    return post
-
-def epk_gui(artist_name, background, achievements, social_links, press_quotes, video_links, pdf_filename, photos):
-    epk_text = generate_epk(artist_name, background, achievements, social_links, press_quotes)
-    if video_links.strip():
-        epk_text += "\n\nVideo Links: " + video_links
-    pdf_path = create_epk_pdf(epk_text, pdf_filename, photos)
-    return epk_text, pdf_path
-
-def crawl_article_gui(crawl_url, pdf_filename, include_images_choice, uploaded_images):
-    include_images = True if include_images_choice.lower() == "yes" else False
-    article_text, pdf_path = crawl_and_generate_article(crawl_url, pdf_filename, include_images=include_images)
-    if uploaded_images:
-        pdf_path = create_pdf_with_images(article_text, pdf_filename, uploaded_images)
-    return article_text, pdf_path
-
-def crawl_images_callback(crawl_url):
-    images = crawl_images_gui(crawl_url)
-    return images
-
-def download_chat_pdf_callback(chat_history, pdf_filename):
-    return download_chat_pdf(chat_history, pdf_filename)
+def chat_with_api(prompt: str) -> str:
+    """A simple wrapper to interact with GPT-4."""
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4-0613",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=150,
+            temperature=0.7,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return f"Error: {e}"
 
 ###############################################
-# CALLBACK: Crawl Website and Generate Article PDF with Optional Images
+# NEW HELPER FUNCTION: Create PDF with Images
+###############################################
+def create_pdf_with_images(text: str, output_filename: str, image_paths: list) -> str:
+    """
+    Creates a PDF that includes the provided text on the first page,
+    and embeds each image (from image_paths) on subsequent pages.
+    """
+    try:
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        pdf.multi_cell(0, 10, text)
+        for img in image_paths:
+            pdf.add_page()
+            try:
+                pdf.image(img, w=100)
+            except Exception as e:
+                pdf.cell(0, 10, f"Error embedding image {img}: {e}", ln=True)
+        pdf.output(output_filename)
+        return output_filename
+    except Exception as e:
+        return f"Error generating PDF with images: {e}"
+
+###############################################
+# NEW FUNCTION: Crawl Website and Generate Article PDF with Optional Images
 ###############################################
 def crawl_and_generate_article(url: str, pdf_filename: str, include_images: bool = False) -> tuple[str, str]:
+    """
+    Crawls the given website URL using BeautifulSoup, extracts its primary textual content,
+    and then uses GPT-4 to generate a formal, well-structured article based on that content.
+    Optionally, if include_images is True, it downloads image URLs from the page and
+    uses create_pdf_with_images to embed them in the resulting PDF.
+    
+    Returns:
+      A tuple (article_text, pdf_file_path).
+    """
     try:
         response = requests.get(url)
         response.raise_for_status()
@@ -340,9 +294,13 @@ def crawl_and_generate_article(url: str, pdf_filename: str, include_images: bool
     return (article_text, pdf_path)
 
 ###############################################
-# CALLBACK: Crawl Website for Images Only
+# NEW FUNCTION: Crawl Website for Images Only
 ###############################################
 def crawl_images_gui(crawl_url: str) -> list:
+    """
+    Crawls the given website URL using BeautifulSoup, extracts all image URLs,
+    downloads them, and returns a list of local file paths to the downloaded images.
+    """
     try:
         response = requests.get(crawl_url)
         response.raise_for_status()
@@ -400,7 +358,7 @@ def update_function_view(choice: str):
     lyrics_vis = True if choice == "Generate Lyrics (PDF)" else False
     article_vis = True if choice == "Generate Article (PDF)" else False
     summarize_vis = True if choice == "Summarize Text (PDF)" else False
-    getaudio_vis = True if choice == "Get Audio" else False
+    getaudio_vis = False  # Hiding the Get Audio function
     pressrelease_vis = True if choice == "Press Release (PDF)" else False
     social_vis = True if choice == "Social Media Post" else False
     epk_vis = True if choice == "Generate EPK (PDF)" else False
@@ -450,8 +408,6 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     with gr.Group(visible=True) as chat_group:
         chat_output = gr.Chatbot(label="Conversation", type="messages")
         chat_input = gr.Textbox(label="Your Message", placeholder="Type your message here...", lines=2)
-        # Added a new file input for image attachments in chat
-        chat_image = gr.File(label="Attach Image (optional)", file_count="single", type="filepath")
         chat_button = gr.Button("Send")
         chat_pdf_filename = gr.Textbox(label="Chat PDF Filename", placeholder="chat_conversation.pdf")
         download_chat_button = gr.Button("Download Chat as PDF")
@@ -487,6 +443,7 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
         summarize_run = gr.Button("Summarize Text")
         summarize_output = gr.Textbox(label="Summary Output", interactive=False)
     
+    # The Get Audio group is defined but will be hidden by update_function_view.
     with gr.Group(visible=False) as getaudio_group:
         audio_url_input_get = gr.Textbox(label="Enter Audio URL", placeholder="Enter URL...")
         format_radio_get = gr.Radio(["mp3", "wav"], label="Audio Format", value="mp3")
@@ -545,21 +502,15 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
         return "", history
 
     def transcribe_audio_gui(file, url, format_choice):
-        downloads_dir = os.path.join(os.getcwd(), "downloads")
         if file is not None:
             file_path = file.name
         elif url:
+            if "youtube.com" in url.lower() or "youtu.be" in url.lower():
+                return "YouTube links are not supported. Please use SoundCloud or another provider."
             file_path = get_audio(url, desired_format=format_choice)
         else:
             return "No audio provided."
         transcript = transcribe_audio(file_path)
-        # Delete the temporary file if downloaded automatically.
-        if file_path.startswith(downloads_dir):
-            try:
-                os.remove(file_path)
-                print("Temporary audio file deleted.", flush=True)
-            except Exception as e:
-                print(f"Error deleting file: {e}", flush=True)
         return transcript
 
     def generate_lyrics_gui(file, url, format_choice, pdf_filename):
@@ -595,6 +546,8 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
         return summary, pdf_path
 
     def get_audio_gui(url, format_choice):
+        if "youtube.com" in url.lower() or "youtu.be" in url.lower():
+            return "YouTube links are not supported. Please use SoundCloud or another provider."
         file_path = get_audio(url, desired_format=format_choice)
         return file_path
 
