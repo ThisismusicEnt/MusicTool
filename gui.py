@@ -22,10 +22,7 @@ client = openai.OpenAI(api_key=openai.api_key)
 ### HELPER FUNCTIONS ###
 
 def transcribe_audio(audio_file_path: str) -> str:
-    """
-    Transcribes an audio file using OpenAI's Whisper API.
-    Expects a valid audio file path (e.g., .mp3, .wav).
-    """
+    """Transcribes an audio file using OpenAI's Whisper API."""
     try:
         with open(audio_file_path, "rb") as audio_file:
             transcript = openai.Audio.transcribe("whisper-1", audio_file)
@@ -69,18 +66,14 @@ Please summarize the following text in a concise and clear manner:
         return f"Error during GPT processing: {e}"
 
 def generate_press_release(song_title: str, artist_name: str, release_date: str, album_description: str) -> str:
-    """
-    Generates a professional press release for an upcoming song or album release.
-    """
+    """Generates a professional press release using GPT-4."""
     prompt = f"""You are a digital music consultant and marketing expert.
-Generate a professional press release for the following release details:
+Generate a professional press release for the following details:
 Song/Album Title: {song_title}
 Artist Name: {artist_name}
 Release Date: {release_date}
 Album Description: {album_description}
-
-The press release should be engaging, informative, and formatted for media distribution. Output only the press release text.
-"""
+Output only the press release text."""
     try:
         response = client.chat.completions.create(
             model="gpt-4-0613",
@@ -93,14 +86,10 @@ The press release should be engaging, informative, and formatted for media distr
         return f"Error generating press release: {e}"
 
 def generate_social_media_post(song_title: str, artist_name: str) -> str:
-    """
-    Generates a creative social media post to promote a song.
-    """
+    """Generates a creative social media post using GPT-4."""
     prompt = f"""You are a digital music consultant with expertise in social media marketing.
 Write an engaging and concise social media post to promote the song "{song_title}" by {artist_name}.
-Include a call-to-action and a catchy tone suitable for platforms like Instagram or Twitter.
-Output only the post text.
-"""
+Output only the post text."""
     try:
         response = client.chat.completions.create(
             model="gpt-4-0613",
@@ -113,20 +102,15 @@ Output only the post text.
         return f"Error generating social media post: {e}"
 
 def generate_epk(artist_name: str, background_info: str, achievements: str, social_links: str, press_quotes: str) -> str:
-    """
-    Generates a comprehensive Electronic Press Kit (EPK) for an artist.
-    """
+    """Generates a comprehensive Electronic Press Kit (EPK) using GPT-4."""
     prompt = f"""You are a digital music consultant and marketing expert.
 Generate a comprehensive Electronic Press Kit (EPK) for the artist "{artist_name}".
-Include the following details:
+Include:
 - Background Information: {background_info}
 - Achievements: {achievements}
 - Social Media/Website Links: {social_links}
-"""
-    if press_quotes:
-        prompt += f"- Press Quotes: {press_quotes}\n"
-    prompt += "\nThe EPK should be engaging, professional, and suitable for media and industry professionals. Output only the EPK text."
-    
+- Press Quotes: {press_quotes}
+Output only the EPK text."""
     try:
         response = client.chat.completions.create(
             model="gpt-4-0613",
@@ -139,9 +123,7 @@ Include the following details:
         return f"Error generating EPK: {e}"
 
 def text_to_pdf(text: str, output_filename: str) -> str:
-    """
-    Generates a PDF file from the provided text and returns the filename.
-    """
+    """Generates a PDF file from the provided text and returns the filename."""
     try:
         pdf = FPDF()
         pdf.add_page()
@@ -184,6 +166,7 @@ def create_epk_pdf(epk_text: str, output_filename: str, photos: list = None) -> 
 ###############################################
 # UPDATED DOWNLOAD & PROCESSING FUNCTIONS
 ###############################################
+
 def get_audio(url: str, desired_format: str = "mp3") -> str:
     """
     Uses yt-dlp to download audio from a given URL and convert it to the desired format.
@@ -232,29 +215,23 @@ def get_audio(url: str, desired_format: str = "mp3") -> str:
         print(f"Error in get_audio: {e}", flush=True)
         return f"Error downloading audio: {e}"
 
-###############################################
-# CALLBACK FUNCTIONS FOR GUI
-###############################################
-def send_chat(message, history, chat_image=None):
-    """
-    Sends a chat message. If an image is attached, include its file path as an attachment.
-    """
-    # If an image is attached, append a note to the message (for now, not sending image data to OpenAI).
-    if chat_image is not None:
-        message += " [Image Attached: " + chat_image.name + "]"
-    response = chat_with_api(message)
-    history = history + [{"role": "user", "content": message}, {"role": "assistant", "content": response}]
-    return "", history
-
 def transcribe_audio_gui(file, url, format_choice):
     downloads_dir = os.path.join(os.getcwd(), "downloads")
     if file is not None:
         file_path = file.name
     elif url:
+        # Allow YouTube links here
         file_path = get_audio(url, desired_format=format_choice)
     else:
         return "No audio provided."
     transcript = transcribe_audio(file_path)
+    # Delete the temporary downloaded file, if applicable.
+    if file_path.startswith(downloads_dir):
+        try:
+            os.remove(file_path)
+            print("Temporary audio file deleted.", flush=True)
+        except Exception as e:
+            print(f"Error deleting file: {e}", flush=True)
     return transcript
 
 def generate_lyrics_gui(file, url, format_choice, pdf_filename):
@@ -273,30 +250,10 @@ def generate_article_gui(file, url, format_choice, pdf_filename):
     pdf_path = text_to_pdf(article, pdf_filename)
     return article, pdf_path
 
-def summarize_text_gui(file, url, pdf_filename):
-    if file is not None:
-        text = file.read().decode("utf-8")
-    elif url:
-        try:
-            r = requests.get(url)
-            r.raise_for_status()
-            text = r.text
-        except Exception as e:
-            return f"Error downloading text: {e}", None
-    else:
-        return "No text provided.", None
-    summary = generate_output(text, task="summarize")
-    pdf_path = text_to_pdf(summary, pdf_filename)
-    return summary, pdf_path
-
-def get_audio_gui(url, format_choice, download_choice):
+def get_audio_gui(url, format_choice):
+    # For the "Get Audio" function, simply return the downloaded file path.
     file_path = get_audio(url, desired_format=format_choice)
-    if file_path.startswith("Error downloading audio:"):
-        return file_path
-    if download_choice.lower() == "browser":
-        return file_path  # This file will be available for browser download.
-    else:
-        return f"File saved on server at: {file_path}"
+    return file_path
 
 def press_release_gui(song_title, artist_name, release_date, description, pdf_filename):
     pr = generate_press_release(song_title, artist_name, release_date, description)
@@ -340,6 +297,7 @@ def crawl_and_generate_article(url: str, pdf_filename: str, include_images: bool
     
     try:
         soup = BeautifulSoup(response.text, 'html.parser')
+        # Remove script and style elements
         for tag in soup(["script", "style"]):
             tag.decompose()
         raw_text = soup.get_text(separator="\n")
@@ -468,7 +426,7 @@ def update_function_view(choice: str):
 with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     gr.Markdown("## ThisIsMusic.ai\nYour digital music consultant for music production, marketing, and creative functions.")
     
-    # Dropdown for function selection (including new options)
+    # Dropdown for function selection (including the new options)
     function_choice = gr.Dropdown(
         label="Select Function",
         choices=[
@@ -492,7 +450,7 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     with gr.Group(visible=True) as chat_group:
         chat_output = gr.Chatbot(label="Conversation", type="messages")
         chat_input = gr.Textbox(label="Your Message", placeholder="Type your message here...", lines=2)
-        # Added file input for image attachments in chat
+        # Added a new file input for image attachments in chat
         chat_image = gr.File(label="Attach Image (optional)", file_count="single", type="filepath")
         chat_button = gr.Button("Send")
         chat_pdf_filename = gr.Textbox(label="Chat PDF Filename", placeholder="chat_conversation.pdf")
@@ -532,10 +490,8 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     with gr.Group(visible=False) as getaudio_group:
         audio_url_input_get = gr.Textbox(label="Enter Audio URL", placeholder="Enter URL...")
         format_radio_get = gr.Radio(["mp3", "wav"], label="Audio Format", value="mp3")
-        download_choice = gr.Radio(choices=["Browser", "Local"], label="Download Destination", value="Browser")
         getaudio_run = gr.Button("Get Audio")
         download_audio_file = gr.File(label="Downloaded Audio File")
-        getaudio_output_text = gr.Textbox(label="Get Audio Output", interactive=False)
     
     with gr.Group(visible=False) as pressrelease_group:
         pr_song_title = gr.Textbox(label="Song/Album Title", placeholder="Enter title...")
@@ -583,9 +539,7 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     pdf_file = gr.File(label="Download PDF")
     
     ### CALLBACK FUNCTIONS ###
-    def send_chat(message, history, chat_image=None):
-        if chat_image is not None:
-            message += " [Image Attached: " + chat_image.name + "]"
+    def send_chat(message, history):
         response = chat_with_api(message)
         history = history + [{"role": "user", "content": message}, {"role": "assistant", "content": response}]
         return "", history
@@ -599,6 +553,13 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
         else:
             return "No audio provided."
         transcript = transcribe_audio(file_path)
+        # Delete the temporary file if downloaded automatically.
+        if file_path.startswith(downloads_dir):
+            try:
+                os.remove(file_path)
+                print("Temporary audio file deleted.", flush=True)
+            except Exception as e:
+                print(f"Error deleting file: {e}", flush=True)
         return transcript
 
     def generate_lyrics_gui(file, url, format_choice, pdf_filename):
@@ -633,14 +594,9 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
         pdf_path = text_to_pdf(summary, pdf_filename)
         return summary, pdf_path
 
-    def get_audio_gui(url, format_choice, download_choice):
+    def get_audio_gui(url, format_choice):
         file_path = get_audio(url, desired_format=format_choice)
-        if file_path.startswith("Error downloading audio:"):
-            return file_path
-        if download_choice.lower() == "browser":
-            return file_path  # File component will allow download.
-        else:
-            return f"File saved on server at: {file_path}"
+        return file_path
 
     def press_release_gui(song_title, artist_name, release_date, description, pdf_filename):
         pr = generate_press_release(song_title, artist_name, release_date, description)
@@ -680,12 +636,12 @@ with gr.Blocks(title="ThisIsMusic.ai - Digital Music Consultant") as demo:
     )
     
     ### LINKING COMPONENT ACTIONS ###
-    chat_button.click(send_chat, inputs=[chat_input, chat_output, chat_image], outputs=[chat_input, chat_output])
+    chat_button.click(send_chat, inputs=[chat_input, chat_output], outputs=[chat_input, chat_output])
     transcribe_run.click(transcribe_audio_gui, inputs=[audio_file_input_trans, audio_url_input_trans, format_radio_trans], outputs=transcribe_result)
     lyrics_run.click(generate_lyrics_gui, inputs=[audio_file_input_lyrics, audio_url_input_lyrics, format_radio_lyrics, lyrics_pdf_name], outputs=[lyrics_output, pdf_file])
     article_run.click(generate_article_gui, inputs=[audio_file_input_article, audio_url_input_article, format_radio_article, article_pdf_name], outputs=[article_output, pdf_file])
     summarize_run.click(summarize_text_gui, inputs=[text_file_input, text_url_input, summarize_pdf_name], outputs=[summarize_output, pdf_file])
-    getaudio_run.click(get_audio_gui, inputs=[audio_url_input_get, format_radio_get, download_choice], outputs=[download_audio_file, getaudio_output_text])
+    getaudio_run.click(get_audio_gui, inputs=[audio_url_input_get, format_radio_get], outputs=download_audio_file)
     pr_run.click(press_release_gui, inputs=[pr_song_title, pr_artist_name, pr_release_date, pr_description, pr_pdf_name], outputs=[pr_output, pdf_file])
     social_run.click(social_post_gui, inputs=[sp_song_title, sp_artist_name], outputs=social_output)
     epk_run.click(epk_gui, inputs=[epk_artist_name, epk_background, epk_achievements, epk_social_links, epk_press_quotes, epk_video_links, epk_pdf_name, epk_photos], outputs=[epk_output, pdf_file])
