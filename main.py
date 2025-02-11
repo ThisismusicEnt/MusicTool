@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 import os
-import json
-import openai
 import datetime
+import openai
+import yt_dlp
 import requests
 from dotenv import load_dotenv
 from fpdf import FPDF
-import yt_dlp  # For downloading audio
 
 # Load environment variables from .env
 load_dotenv()
@@ -14,7 +13,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 if openai.api_key is None:
     raise ValueError("OPENAI_API_KEY is not set in the .env file.")
 
-### FUNCTION DEFINITIONS ###
+### HELPER FUNCTIONS ###
 
 def transcribe_audio(audio_file_path: str) -> str:
     """
@@ -60,7 +59,7 @@ Please summarize the following text in a concise and clear manner:
             max_tokens=500,
             temperature=0.7,
         )
-        return response["choices"][0]["message"]["content"].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         print(f"Error during GPT processing: {e}")
         return ""
@@ -85,7 +84,7 @@ The press release should be engaging, informative, and formatted for media distr
             max_tokens=500,
             temperature=0.7,
         )
-        return response["choices"][0]["message"]["content"].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         print(f"Error generating press release: {e}")
         return ""
@@ -106,7 +105,7 @@ Output only the post text.
             max_tokens=150,
             temperature=0.7,
         )
-        return response["choices"][0]["message"]["content"].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         print(f"Error generating social media post: {e}")
         return ""
@@ -133,7 +132,7 @@ Include the following details:
             max_tokens=600,
             temperature=0.7,
         )
-        return response["choices"][0]["message"]["content"].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         print(f"Error generating EPK: {e}")
         return ""
@@ -192,6 +191,13 @@ def get_audio(url: str, desired_format: str = "mp3") -> str:
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     output_template = os.path.join(downloads_dir, f"{timestamp}_%(title)s.%(ext)s")
     
+    # Define a progress hook for debugging
+    def progress_hook(d):
+        if d.get("status") == "downloading":
+            print(f"Downloading... {d.get('downloaded_bytes', 0)} bytes downloaded.")
+        elif d.get("status") == "finished":
+            print("Download finished, now post-processing...")
+
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': output_template,
@@ -199,8 +205,11 @@ def get_audio(url: str, desired_format: str = "mp3") -> str:
             'key': 'FFmpegExtractAudio',
             'preferredcodec': desired_format,
             'preferredquality': '192',
+            'postprocessor_args': ['-nostdin']
         }],
         'quiet': True,
+        'socket_timeout': 30,
+        'progress_hooks': [progress_hook],
     }
     
     try:
@@ -258,7 +267,7 @@ def chat_with_api(prompt: str) -> str:
             max_tokens=150,
             temperature=0.7,
         )
-        return response["choices"][0]["message"]["content"].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error: {e}"
 
